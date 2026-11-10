@@ -27,11 +27,14 @@ static void notify_user(const char *message) {
     request.useIconImageUri = 1;
     request.targetId = -1;
 
-    snprintf(request.message, sizeof(request.message), "%s", message);
+    snprintf(request.message, sizeof(request.message),
+             "%s", message);
     snprintf(request.iconUri, sizeof(request.iconUri),
              "%s", "cxml://psnotification/tex_icon_champions_league");
 
-    sceKernelSendNotificationRequest(0, &request, sizeof(request), 0);
+    sceKernelSendNotificationRequest(
+        0, &request, sizeof(request), 0
+    );
 }
 
 int plugin_load(int argc, char **argv) {
@@ -42,7 +45,7 @@ int plugin_load(int argc, char **argv) {
     int result = sys_sdk_proc_info(&info);
 
     if (result != 0) {
-        notify_user("Days Gone Plugin: falha ao consultar processo.");
+        notify_user("Days Gone: falha ao consultar processo.");
         return 0;
     }
 
@@ -50,8 +53,9 @@ int plugin_load(int argc, char **argv) {
         char message[256];
 
         snprintf(message, sizeof(message),
-                 "Days Gone detectado | %.5s | PID %d",
-                 info.version, info.pid);
+                 "Days Gone 1.81 | PID %d | BASE 0x%llX",
+                 info.pid,
+                 (unsigned long long)info.base_address);
 
         notify_user(message);
     } else {

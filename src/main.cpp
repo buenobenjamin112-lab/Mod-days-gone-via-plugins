@@ -1,10 +1,10 @@
-#include <kernel.h>
-#include <systemservice.h>
+#include <orbis/Kernel.h>
+#include <orbis/SystemService.h>
 #include <stdio.h>
 
 extern "C" {
     int module_start(size_t args, const void *argp) {
-        // Envia uma notificação direta para o sistema do PS4 (GoldHEN)
+        // Envia a notificação para o ecrã do PS4 através do GoldHEN
         sceKernelSendNotificationRequest(0, "Days Gone: Hordas Gigantes Ativo!", -1);
         return 0;
     }

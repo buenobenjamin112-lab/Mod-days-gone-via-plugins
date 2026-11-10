@@ -29,8 +29,10 @@ static void notify_user(const char *message) {
 
     snprintf(request.message, sizeof(request.message),
              "%s", message);
+
     snprintf(request.iconUri, sizeof(request.iconUri),
-             "%s", "cxml://psnotification/tex_icon_champions_league");
+             "%s",
+             "cxml://psnotification/tex_icon_champions_league");
 
     sceKernelSendNotificationRequest(
         0, &request, sizeof(request), 0
@@ -42,25 +44,31 @@ int plugin_load(int argc, char **argv) {
     (void)argv;
 
     proc_info info = {};
+
     int result = sys_sdk_proc_info(&info);
 
     if (result != 0) {
-        notify_user("Days Gone: falha ao consultar processo.");
+        notify_user("Days Gone: erro ao consultar processo.");
         return 0;
     }
 
-    if (strcmp(info.titleid, "CUSA08966") == 0) {
-        char message[256];
-
-        snprintf(message, sizeof(message),
-                 "Days Gone 1.81 | PID %d | BASE 0x%llX",
-                 info.pid,
-                 (unsigned long long)info.base_address);
-
-        notify_user(message);
-    } else {
-        notify_user("Days Gone Plugin carregado.");
+    if (strcmp(info.titleid, "CUSA08966") != 0) {
+        notify_user("Outro processo detectado.");
+        return 0;
     }
+
+    char message[256];
+
+    snprintf(
+        message,
+        sizeof(message),
+        "Days Gone %s | PID %d | BASE 0x%llX | MEMORIA SEGURA",
+        info.version,
+        info.pid,
+        (unsigned long long)info.base_address
+    );
+
+    notify_user(message);
 
     return 0;
 }
@@ -70,6 +78,7 @@ int plugin_unload(int argc, char **argv) {
     (void)argv;
 
     notify_user("Days Gone Plugin descarregado.");
+
     return 0;
 }
 

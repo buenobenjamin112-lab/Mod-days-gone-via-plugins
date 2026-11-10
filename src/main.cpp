@@ -3,7 +3,21 @@
 #include <stdio.h>
 #include <string.h>
 
+extern "C" {
+
 const char *g_pluginName = "DaysGoneSpawner";
+
+int module_start(size_t args, const void *argp) {
+    (void)args;
+    (void)argp;
+    return 0;
+}
+
+int module_stop(size_t args, const void *argp) {
+    (void)args;
+    (void)argp;
+    return 0;
+}
 
 static void notify_user(const char *message) {
     OrbisNotificationRequest request = {};
@@ -19,8 +33,6 @@ static void notify_user(const char *message) {
 
     sceKernelSendNotificationRequest(0, &request, sizeof(request), 0);
 }
-
-extern "C" {
 
 int plugin_load(int argc, char **argv) {
     (void)argc;

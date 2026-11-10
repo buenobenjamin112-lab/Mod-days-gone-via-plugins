@@ -1,15 +1,21 @@
 TARGET = DaysGoneSpawner
-OBJS = src/main.o src/cheats.o
+SRCS = src/main.cpp src/cheats.cpp
+OBJS = $(SRCS:.cpp=.o)
 
 CC = clang
 CXX = clang++
 LD = ld.lld
 
-CFLAGS = -O3 -Wall -fPIC -isystem $(OO_PS4_TOOLCHAIN)/include
+OO_PS4_TOOLCHAIN ?= /opt/openorbis
+
+CFLAGS = -O3 -Wall -fPIC -target x86_64-unknown-freebsd-elf -isystem $(OO_PS4_TOOLCHAIN)/include
 CXXFLAGS = $(CFLAGS) -std=c++11
 LDFLAGS = -shared -L$(OO_PS4_TOOLCHAIN)/lib
 
 all: $(TARGET).prx
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(TARGET).prx: $(OBJS)
 	$(LD) $(LDFLAGS) -o $(TARGET).elf $(OBJS)

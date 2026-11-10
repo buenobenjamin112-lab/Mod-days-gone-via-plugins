@@ -18,6 +18,10 @@ jobs:
         sudo apt-get install -y clang lld make git
         git clone https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain.git /opt/openorbis
         
+        # Mostra a estrutura de pastas para sabermos exatamente onde o kernel.h está guardado
+        echo "A procurar o kernel.h:"
+        find /opt/openorbis -name "kernel.h"
+
     - name: Compilar Plugin .prx
       run: |
         make clean

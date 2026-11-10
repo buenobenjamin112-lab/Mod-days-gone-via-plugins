@@ -8,7 +8,11 @@ LD = ld.lld
 
 OO_PS4_TOOLCHAIN ?= /opt/openorbis
 
-CFLAGS = -O3 -Wall -fPIC -target x86_64-unknown-freebsd-elf -isystem $(OO_PS4_TOOLCHAIN)/include
+# Adiciona múltiplos caminhos de include para evitar erros de diretório
+CFLAGS = -O3 -Wall -fPIC -target x86_64-unknown-freebsd-elf \
+         -I$(OO_PS4_TOOLCHAIN)/include \
+         -I$(OO_PS4_TOOLCHAIN)/include/orbis
+         
 CXXFLAGS = $(CFLAGS) -std=c++11
 LDFLAGS = -shared -L$(OO_PS4_TOOLCHAIN)/lib
 

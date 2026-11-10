@@ -62,8 +62,9 @@ $(OELF): $(MAIN) $(SDK_OBJS) $(CRT)
 	      --lib=$(TARGET) \
 	      --paid 0x3800000000000011
 	test -s $(OELF)
+	test -s $(TARGET)
 
 clean:
-	rm -rf build $(OELF)
+	rm -rf build $(OELF) $(TARGET)
 
 .PHONY: all clean

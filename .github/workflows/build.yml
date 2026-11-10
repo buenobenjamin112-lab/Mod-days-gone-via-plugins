@@ -1,0 +1,24 @@
+name: Compilar DaysGone Hordes (OpenOrbis)
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Descarregar o Código do Repositório
+      uses: actions/checkout@v4
+
+    - name: Configurar e Compilar usando Docker (OpenOrbis SDK)
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/project -w /project openorbis/ps4-toolchain bash -c "make clean && make"
+
+    - name: Guardar o ficheiro .prx compilado (Artifacts)
+      uses: actions/upload-artifact@v4
+      with:
+        name: DaysGoneHordes-Plugin
+        path: DaysGoneSpawner.prx
+        

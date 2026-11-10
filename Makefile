@@ -35,7 +35,7 @@ CRT = build/crtprx.o
 MAIN = build/main.o
 ELF = build/DaysGoneSpawner.elf
 
-all: $(TARGET)
+all: $(OELF)
 
 build:
 	mkdir -p build
@@ -53,7 +53,7 @@ $(CRT): $(GOLDHEN_SDK)/crt/crtprx.c | build
 	      -isystem $(OO_PS4_TOOLCHAIN)/include \
 	      -c $< -o $@
 
-$(TARGET): $(MAIN) $(SDK_OBJS) $(CRT)
+$(OELF): $(MAIN) $(SDK_OBJS) $(CRT)
 	$(LD) $(CRT) $(MAIN) $(SDK_OBJS) \
 	      -o $(ELF) $(LDFLAGS)
 	$(OO_PS4_TOOLCHAIN)/bin/linux/create-fself \
@@ -62,9 +62,8 @@ $(TARGET): $(MAIN) $(SDK_OBJS) $(CRT)
 	      --lib=$(TARGET) \
 	      --paid 0x3800000000000011
 	test -s $(OELF)
-	test -s $(TARGET)
 
 clean:
-	rm -rf build $(TARGET) $(OELF)
+	rm -rf build $(OELF)
 
 .PHONY: all clean

@@ -4,7 +4,6 @@
 
 extern "C" {
     int module_start(size_t args, const void *argp) {
-        // Envia a notificação para o ecrã do PS4 através do GoldHEN
         sceKernelSendNotificationRequest(0, "Days Gone: Hordas Gigantes Ativo!", -1);
         return 0;
     }

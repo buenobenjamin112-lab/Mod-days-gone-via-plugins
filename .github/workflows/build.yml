@@ -41,15 +41,15 @@ jobs:
           make clean
           make
 
-      - name: Verify OELF
+      - name: Verify PRX
         run: |
-          test -s DaysGoneSpawner.oelf
-          file DaysGoneSpawner.oelf
+          test -s DaysGoneSpawner.prx
+          file DaysGoneSpawner.prx
 
-      - name: Upload OELF
+      - name: Upload PRX
         uses: actions/upload-artifact@v4
         with:
-          name: DaysGoneSpawner
-          path: DaysGoneSpawner.oelf
+          name: DaysGoneSpawner-PRX
+          path: DaysGoneSpawner.prx
           if-no-files-found: error
           

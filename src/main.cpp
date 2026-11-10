@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+const char *g_pluginName = "DaysGoneSpawner";
+
 static void notify_user(const char *message) {
     OrbisNotificationRequest request = {};
 
@@ -15,22 +17,20 @@ static void notify_user(const char *message) {
     snprintf(request.iconUri, sizeof(request.iconUri),
              "%s", "cxml://psnotification/tex_icon_champions_league");
 
-    sceKernelSendNotificationRequest(
-        0, &request, sizeof(request), 0
-    );
+    sceKernelSendNotificationRequest(0, &request, sizeof(request), 0);
 }
 
 extern "C" {
 
-int module_start(size_t args, const void *argp) {
-    (void)args;
-    (void)argp;
+int plugin_load(int argc, char **argv) {
+    (void)argc;
+    (void)argv;
 
     proc_info info = {};
     int result = sys_sdk_proc_info(&info);
 
     if (result != 0) {
-        notify_user("Plugin: falha na consulta GoldHEN.");
+        notify_user("Days Gone Plugin: falha ao consultar processo.");
         return 0;
     }
 
@@ -43,23 +43,17 @@ int module_start(size_t args, const void *argp) {
 
         notify_user(message);
     } else {
-        char message[192];
-
-        snprintf(message, sizeof(message),
-                 "Plugin ativo | processo: %.39s",
-                 info.name);
-
-        notify_user(message);
+        notify_user("Days Gone Plugin carregado.");
     }
 
     return 0;
 }
 
-int module_stop(size_t args, const void *argp) {
-    (void)args;
-    (void)argp;
+int plugin_unload(int argc, char **argv) {
+    (void)argc;
+    (void)argv;
 
-    notify_user("Days Gone plugin descarregado.");
+    notify_user("Days Gone Plugin descarregado.");
     return 0;
 }
 

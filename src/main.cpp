@@ -1,5 +1,5 @@
-#include <orbis/Kernel.h>
-#include <orbis/SystemService.h>
+#include <kernel.h>
+#include <systemservice.h>
 #include <stdio.h>
 
 extern "C" {

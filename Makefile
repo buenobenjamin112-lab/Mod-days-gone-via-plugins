@@ -1,5 +1,6 @@
 
-TARGET = DaysGoneSpawner.oelf
+TARGET = DaysGoneSpawner.prx
+OELF = DaysGoneSpawner.oelf
 
 OO_PS4_TOOLCHAIN ?= /opt/openorbis
 GOLDHEN_SDK ?= /opt/goldhen-sdk
@@ -53,16 +54,17 @@ $(CRT): $(GOLDHEN_SDK)/crt/crtprx.c | build
 	      -c $< -o $@
 
 $(TARGET): $(MAIN) $(SDK_OBJS) $(CRT)
-	$(LD) $(MAIN) $(SDK_OBJS) $(CRT) \
+	$(LD) $(CRT) $(MAIN) $(SDK_OBJS) \
 	      -o $(ELF) $(LDFLAGS)
 	$(OO_PS4_TOOLCHAIN)/bin/linux/create-fself \
 	      -in=$(ELF) \
-	      -out=$(TARGET) \
-	      --lib=DaysGoneSpawner \
+	      -out=$(OELF) \
+	      --lib=$(TARGET) \
 	      --paid 0x3800000000000011
+	test -s $(OELF)
 	test -s $(TARGET)
 
 clean:
-	rm -rf build $(TARGET)
+	rm -rf build $(TARGET) $(OELF)
 
 .PHONY: all clean

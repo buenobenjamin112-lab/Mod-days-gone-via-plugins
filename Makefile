@@ -5,9 +5,9 @@ CC = clang
 CXX = clang++
 LD = ld.lld
 
-CFLAGS = -O3 -Wall -fPIC
+CFLAGS = -O3 -Wall -fPIC -isystem $(OO_PS4_TOOLCHAIN)/include
 CXXFLAGS = $(CFLAGS) -std=c++11
-LDFLAGS = -shared
+LDFLAGS = -shared -L$(OO_PS4_TOOLCHAIN)/lib
 
 all: $(TARGET).prx
 

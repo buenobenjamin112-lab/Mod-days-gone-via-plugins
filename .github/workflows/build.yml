@@ -1,69 +1,55 @@
 
-TARGET = DaysGoneSpawner.prx
+name: Build Days Gone Plugin
 
-OO_PS4_TOOLCHAIN ?= /opt/openorbis
-GOLDHEN_SDK ?= /opt/goldhen-sdk
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
 
-CC = clang
-CXX = clang++
-LD = ld.lld
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-SDK_SOURCE = $(GOLDHEN_SDK)/source
-SDK_INCLUDE = $(GOLDHEN_SDK)/include
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-CFLAGS = --target=x86_64-pc-freebsd12-elf \
-         -fPIC -funwind-tables -c \
-         -isysroot $(OO_PS4_TOOLCHAIN) \
-         -isystem $(OO_PS4_TOOLCHAIN)/include \
-         -I$(SDK_INCLUDE)
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm lld make git
 
-CXXFLAGS = $(CFLAGS) \
-           -isystem $(OO_PS4_TOOLCHAIN)/include/c++/v1
+      - name: Download OpenOrbis Toolchain
+        run: |
+          curl -sL https://github.com/illusion0001/OpenOrbis-PS4-Toolchain/releases/latest/download/toolchain.tar.gz | tar xz -C ./
+          echo "OO_PS4_TOOLCHAIN=$GITHUB_WORKSPACE/OpenOrbis/PS4Toolchain" >> $GITHUB_ENV
 
-LDFLAGS = -m elf_x86_64 -pie \
-          --script $(OO_PS4_TOOLCHAIN)/link.x \
-          -e _init \
-          --eh-frame-hdr \
-          -L$(OO_PS4_TOOLCHAIN)/lib \
-          -lSceLibcInternal -lkernel -lSceSysmodule
+      - name: Download GoldHEN SDK
+        run: |
+          git clone --depth 1 https://github.com/GoldHEN/GoldHEN_Plugins_SDK.git /opt/goldhen-sdk
 
-SDK_SRCS = $(wildcard $(SDK_SOURCE)/*.c)
-SDK_OBJS = $(patsubst $(SDK_SOURCE)/%.c,build/sdk_%.o,$(SDK_SRCS))
+      - name: Verify toolchain
+        run: |
+          test -f "$OO_PS4_TOOLCHAIN/include/orbis/libkernel.h"
+          test -f "$OO_PS4_TOOLCHAIN/link.x"
+          test -f /opt/goldhen-sdk/include/Common.h
+          test -f /opt/goldhen-sdk/crt/crtprx.c
+          test -f "$OO_PS4_TOOLCHAIN/bin/linux/create-fself"
 
-CRT = build/crtprx.o
-MAIN = build/main.o
-ELF = build/DaysGoneSpawner.elf
-OELF = build/DaysGoneSpawner.oelf
+      - name: Compile plugin
+        run: |
+          make clean
+          make
 
-all: $(TARGET)
+      - name: Verify OELF
+        run: |
+          test -s DaysGoneSpawner.oelf
+          file DaysGoneSpawner.oelf
 
-build:
-	mkdir -p build
-
-build/main.o: src/main.cpp | build
-	$(CXX) $(CXXFLAGS) -o $@ $<
-
-build/sdk_%.o: $(SDK_SOURCE)/%.c | build
-	$(CC) $(CFLAGS) -o $@ $<
-
-$(CRT): $(GOLDHEN_SDK)/crt/crtprx.c | build
-	$(CC) -target x86_64-pc-linux-gnu \
-	      -ffreestanding -nostdlib -fno-builtin -fPIC \
-	      -isysroot $(OO_PS4_TOOLCHAIN) \
-	      -isystem $(OO_PS4_TOOLCHAIN)/include \
-	      -c $< -o $@
-
-$(TARGET): $(MAIN) $(SDK_OBJS) $(CRT)
-	$(LD) $(MAIN) $(SDK_OBJS) $(CRT) \
-	      -o $(ELF) $(LDFLAGS)
-	$(OO_PS4_TOOLCHAIN)/bin/linux/create-fself \
-	      -in=$(ELF) \
-	      -out=$(OELF) \
-	      --lib=$(TARGET) \
-	      --paid 0x3800000000000011
-	test -s $(TARGET)
-
-clean:
-	rm -rf build $(TARGET)
-
-.PHONY: all clean
+      - name: Upload OELF
+        uses: actions/upload-artifact@v4
+        with:
+          name: DaysGoneSpawner
+          path: DaysGoneSpawner.oelf
+          if-no-files-found: error
+		  

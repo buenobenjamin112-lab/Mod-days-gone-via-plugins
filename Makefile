@@ -32,6 +32,8 @@ SDK_OBJS = $(patsubst $(SDK_SOURCE)/%.c,build/sdk_%.o,$(SDK_SRCS))
 
 CRT = build/crtprx.o
 MAIN = build/main.o
+ELF = build/DaysGoneSpawner.elf
+OELF = build/DaysGoneSpawner.oelf
 
 all: $(TARGET)
 
@@ -53,12 +55,13 @@ $(CRT): $(GOLDHEN_SDK)/crt/crtprx.c | build
 
 $(TARGET): $(MAIN) $(SDK_OBJS) $(CRT)
 	$(LD) $(MAIN) $(SDK_OBJS) $(CRT) \
-	      -o build/DaysGoneSpawner.elf $(LDFLAGS)
+	      -o $(ELF) $(LDFLAGS)
 	$(OO_PS4_TOOLCHAIN)/bin/linux/create-fself \
-	      -in=build/DaysGoneSpawner.elf \
-	      -out=$(TARGET) \
+	      -in=$(ELF) \
+	      -out=$(OELF) \
 	      --lib=$(TARGET) \
 	      --paid 0x3800000000000011
+	test -s $(TARGET)
 
 clean:
 	rm -rf build $(TARGET)

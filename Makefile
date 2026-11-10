@@ -6,13 +6,15 @@ CC = clang
 CXX = clang++
 LD = ld.lld
 
+# Define o caminho do toolchain do OpenOrbis no ambiente do GitHub Actions
 OO_PS4_TOOLCHAIN ?= /opt/openorbis
 
-# Adiciona múltiplos caminhos de include para evitar erros de diretório
+# Adiciona as flags de include apontando diretamente para as pastas de desenvolvimento do PS4
 CFLAGS = -O3 -Wall -fPIC -target x86_64-unknown-freebsd-elf \
          -I$(OO_PS4_TOOLCHAIN)/include \
+         -I$(OO_PS4_TOOLCHAIN)/include/libcxx \
          -I$(OO_PS4_TOOLCHAIN)/include/orbis
-         
+
 CXXFLAGS = $(CFLAGS) -std=c++11
 LDFLAGS = -shared -L$(OO_PS4_TOOLCHAIN)/lib
 

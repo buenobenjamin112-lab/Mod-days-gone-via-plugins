@@ -1,71 +1,55 @@
 
-#include <kernel.h>
-#include <systemservice.h>
-#include <stdint.h>
+#include <Common.h>
 #include <stdio.h>
 #include <string.h>
 
-extern "C" int orbis_syscall(int num, ...);
+static void notify_user(const char *message) {
+    OrbisNotificationRequest request = {};
 
-__asm__(
-    ".att_syntax prefix\n"
-    ".globl orbis_syscall\n"
-    "orbis_syscall:\n"
-    "  movq $0, %rax\n"
-    "  movq %rcx, %r10\n"
-    "  syscall\n"
-    "  jb 1f\n"
-    "  retq\n"
-    "1:\n"
-    "  pushq %rax\n"
-    "  callq __error\n"
-    "  popq %rcx\n"
-    "  movl %ecx, 0(%rax)\n"
-    "  movq $0xFFFFFFFFFFFFFFFF, %rax\n"
-    "  movq $0xFFFFFFFFFFFFFFFF, %rdx\n"
-    "  retq\n"
-);
+    request.type = NotificationRequest;
+    request.unk3 = 0;
+    request.useIconImageUri = 1;
+    request.targetId = -1;
 
-struct proc_info {
-    int pid;
-    char name[40];
-    char path[64];
-    char titleid[16];
-    char contentid[64];
-    char version[6];
-    uint64_t base_address;
-} __attribute__((packed));
+    snprintf(request.message, sizeof(request.message), "%s", message);
+    snprintf(request.iconUri, sizeof(request.iconUri),
+             "%s", "cxml://psnotification/tex_icon_champions_league");
 
-static void notify(const char *message) {
-    sceKernelSendNotificationRequest(0, message, -1);
+    sceKernelSendNotificationRequest(
+        0, &request, sizeof(request), 0
+    );
 }
 
 extern "C" {
+
 int module_start(size_t args, const void *argp) {
     (void)args;
     (void)argp;
 
     proc_info info = {};
-    int result = orbis_syscall(500, 4, &info);
+    int result = sys_sdk_proc_info(&info);
 
     if (result != 0) {
-        notify("Days Gone: falha ao consultar processo.");
+        notify_user("Plugin: falha na consulta GoldHEN.");
         return 0;
     }
 
     if (strcmp(info.titleid, "CUSA08966") == 0) {
         char message[256];
+
         snprintf(message, sizeof(message),
-            "Days Gone detectado | %s | PID %d | base 0x%llX",
-            info.version, info.pid,
-            (unsigned long long)info.base_address);
-        notify(message);
+                 "Days Gone detectado | %.5s | PID %d",
+                 info.version, info.pid);
+
+        notify_user(message);
     } else {
         char message[192];
+
         snprintf(message, sizeof(message),
-            "Plugin ativo em outro processo: %.15s",
-            info.titleid);
-        notify(message);
+                 "Plugin ativo | processo: %.39s",
+                 info.name);
+
+        notify_user(message);
     }
 
     return 0;
@@ -74,7 +58,9 @@ int module_start(size_t args, const void *argp) {
 int module_stop(size_t args, const void *argp) {
     (void)args;
     (void)argp;
-    notify("Days Gone: plugin descarregado.");
+
+    notify_user("Days Gone plugin descarregado.");
     return 0;
 }
+
 }

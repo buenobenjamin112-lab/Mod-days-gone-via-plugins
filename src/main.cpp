@@ -14,18 +14,18 @@ static int g_monitorThreadStarted = 0;
 static OrbisPthread g_monitorThread;
 
 static const size_t MAX_MODULES = 64;
+static const size_t MAX_SCAN_SIZE = 1024 * 1024;
 
-int module_start(size_t args, const void *argp) {
-    (void)args;
-    (void)argp;
-    return 0;
-}
-
-int module_stop(size_t args, const void *argp) {
-    (void)args;
-    (void)argp;
-    return 0;
-}
+static const char *keywords[] = {
+    "Horde",
+    "horde",
+    "Swarm",
+    "swarm",
+    "Freaker",
+    "freaker",
+    "Spawn",
+    "spawn"
+};
 
 static void notify_user(const char *message) {
     OrbisNotificationRequest request = {};
@@ -35,16 +35,21 @@ static void notify_user(const char *message) {
     request.useIconImageUri = 1;
     request.targetId = -1;
 
-    snprintf(request.message, sizeof(request.message), "%s", message);
-    snprintf(request.iconUri, sizeof(request.iconUri), "%s",
-             "cxml://psnotification/tex_icon_champions_league");
+    snprintf(request.message, sizeof(request.message),
+             "%s", message);
+    snprintf(request.iconUri, sizeof(request.iconUri),
+             "%s", "cxml://psnotification/tex_icon_champions_league");
 
-    sceKernelSendNotificationRequest(0, &request, sizeof(request), 0);
+    sceKernelSendNotificationRequest(
+        0, &request, sizeof(request), 0
+    );
 }
 
-static int read_game_memory(uint64_t address,
-                            unsigned char *buffer,
-                            uint64_t length) {
+static int read_game_memory(
+    uint64_t address,
+    unsigned char *buffer,
+    uint64_t length
+) {
     if (!address || !buffer || !length)
         return -1;
 
@@ -57,19 +62,98 @@ static int read_game_memory(uint64_t address,
     return sys_sdk_proc_rw(&request);
 }
 
-static void inspect_eboot_segments(void) {
+static void scan_segment(
+    uint64_t address,
+    uint32_t segmentSize,
+    unsigned int segmentNumber
+) {
+    static unsigned char buffer[MAX_SCAN_SIZE];
+
+    if (!address || segmentSize == 0)
+        return;
+
+    uint64_t scanSize = segmentSize;
+
+    if (scanSize > MAX_SCAN_SIZE)
+        scanSize = MAX_SCAN_SIZE;
+
+    int result = read_game_memory(
+        address, buffer, scanSize
+    );
+
+    if (result != 0) {
+        char message[128];
+
+        snprintf(message, sizeof(message),
+                 "SCAN S%u | ERRO LEITURA %d",
+                 segmentNumber, result);
+
+        notify_user(message);
+        return;
+    }
+
+    unsigned int foundCount = 0;
+
+    for (size_t k = 0;
+         k < sizeof(keywords) / sizeof(keywords[0]);
+         ++k) {
+
+        size_t keyLength = strlen(keywords[k]);
+
+        for (uint64_t i = 0;
+             i + keyLength <= scanSize;
+             ++i) {
+
+            if (memcmp(
+                &buffer[i],
+                keywords[k],
+                keyLength
+            ) == 0) {
+
+                char message[160];
+
+                snprintf(
+                    message, sizeof(message),
+                    "REFERENCIA S%u | %s | @%llX",
+                    segmentNumber,
+                    keywords[k],
+                    (unsigned long long)(address + i)
+                );
+
+                notify_user(message);
+                foundCount++;
+
+                if (foundCount >= 8) {
+                    notify_user(
+                        "LIMITE DE 8 REFERENCIAS POR SEGMENTO"
+                    );
+                    return;
+                }
+            }
+        }
+    }
+
+    if (foundCount == 0) {
+        char message[100];
+
+        snprintf(message, sizeof(message),
+                 "SCAN S%u | NENHUMA REFERENCIA",
+                 segmentNumber);
+
+        notify_user(message);
+    }
+}
+
+static void inspect_eboot(void) {
     OrbisKernelModule modules[MAX_MODULES] = {};
     size_t available = 0;
 
-    int list_result = sceKernelGetModuleList(
+    int result = sceKernelGetModuleList(
         modules, sizeof(modules), &available
     );
 
-    if (list_result != 0) {
-        char message[128];
-        snprintf(message, sizeof(message),
-                 "ERRO LISTA MODULOS | %d", list_result);
-        notify_user(message);
+    if (result != 0) {
+        notify_user("ERRO AO LISTAR MODULOS");
         return;
     }
 
@@ -77,74 +161,38 @@ static void inspect_eboot_segments(void) {
         available = MAX_MODULES;
 
     for (size_t i = 0; i < available; ++i) {
-        OrbisKernelModuleInfo moduleInfo = {};
-        moduleInfo.size = sizeof(moduleInfo);
+        OrbisKernelModuleInfo info = {};
+        info.size = sizeof(info);
 
-        int info_result = sceKernelGetModuleInfo(
-            modules[i], &moduleInfo
-        );
-
-        if (info_result != 0)
+        if (sceKernelGetModuleInfo(
+            modules[i], &info
+        ) != 0)
             continue;
 
-        if (strcmp(moduleInfo.name, "eboot.bin") != 0)
+        if (strcmp(info.name, "eboot.bin") != 0)
             continue;
 
-        char found[128];
-        snprintf(found, sizeof(found),
-                 "EBOOT ENCONTRADO | SEGMENTOS %u",
-                 moduleInfo.segmentCount);
-        notify_user(found);
+        notify_user("INICIANDO BUSCA DE REFERENCIAS");
 
-        uint32_t count = moduleInfo.segmentCount;
+        uint32_t count = info.segmentCount;
+
         if (count > 4)
             count = 4;
 
         for (uint32_t s = 0; s < count; ++s) {
             uint64_t address =
-                (uint64_t)(uintptr_t)moduleInfo.segmentInfo[s].address;
-            uint32_t segmentSize = moduleInfo.segmentInfo[s].size;
-            int32_t protection = moduleInfo.segmentInfo[s].prot;
+                (uint64_t)(uintptr_t)info.segmentInfo[s].address;
 
-            if (!address || segmentSize < 8)
-                continue;
+            uint32_t size = info.segmentInfo[s].size;
 
-            unsigned char bytes[8] = {};
-            int read_result = read_game_memory(
-                address, bytes, sizeof(bytes)
-            );
-
-            char message[180];
-
-            if (read_result == 0) {
-                snprintf(
-                    message, sizeof(message),
-                    "EBOOT S%u @%llX TAM %X P%X | %02X %02X %02X %02X %02X %02X %02X %02X",
-                    s,
-                    (unsigned long long)address,
-                    segmentSize,
-                    (unsigned int)protection,
-                    bytes[0], bytes[1], bytes[2], bytes[3],
-                    bytes[4], bytes[5], bytes[6], bytes[7]
-                );
-            } else {
-                snprintf(
-                    message, sizeof(message),
-                    "EBOOT S%u @%llX TAM %X | ERRO LEITURA %d",
-                    s,
-                    (unsigned long long)address,
-                    segmentSize,
-                    read_result
-                );
-            }
-
-            notify_user(message);
+            scan_segment(address, size, s);
         }
 
+        notify_user("BUSCA DE REFERENCIAS FINALIZADA");
         return;
     }
 
-    notify_user("EBOOT.BIN NAO ENCONTRADO NA LISTA.");
+    notify_user("EBOOT NAO ENCONTRADO");
 }
 
 static void *monitor_thread(void *arg) {
@@ -160,15 +208,18 @@ static void *monitor_thread(void *arg) {
             strcmp(info.titleid, "CUSA08966") == 0) {
 
             if (last_pid != info.pid) {
-                char message[160];
+                char message[128];
 
-                snprintf(message, sizeof(message),
-                         "MONITOR ATIVO | DAYS GONE %s | PID %d",
-                         info.version, info.pid);
+                snprintf(
+                    message, sizeof(message),
+                    "DAYS GONE %s | PID %d",
+                    info.version, info.pid
+                );
+
                 notify_user(message);
-
                 last_pid = info.pid;
-                inspect_eboot_segments();
+
+                inspect_eboot();
             }
         } else if (result == 0) {
             last_pid = -1;
@@ -181,29 +232,44 @@ static void *monitor_thread(void *arg) {
     return NULL;
 }
 
+int module_start(size_t args, const void *argp) {
+    (void)args;
+    (void)argp;
+    return 0;
+}
+
+int module_stop(size_t args, const void *argp) {
+    (void)args;
+    (void)argp;
+    return 0;
+}
+
 int plugin_load(int argc, char **argv) {
     (void)argc;
     (void)argv;
 
-    if (g_monitorThreadStarted) {
-        notify_user("Monitor Days Gone ja esta ativo.");
+    if (g_monitorThreadStarted)
         return 0;
-    }
 
     g_monitorRunning = 1;
 
     int result = scePthreadCreate(
-        &g_monitorThread, NULL, monitor_thread, NULL, "dg_monitor"
+        &g_monitorThread,
+        NULL,
+        monitor_thread,
+        NULL,
+        "dg_monitor"
     );
 
     if (result != 0) {
         g_monitorRunning = 0;
-        notify_user("Erro ao iniciar monitor.");
+        notify_user("ERRO AO INICIAR MONITOR");
         return 0;
     }
 
     g_monitorThreadStarted = 1;
-    notify_user("Days Gone: monitor iniciado.");
+    notify_user("DAYS GONE SCANNER INICIADO");
+
     return 0;
 }
 
@@ -217,7 +283,7 @@ int plugin_unload(int argc, char **argv) {
         g_monitorThreadStarted = 0;
     }
 
-    notify_user("Days Gone Plugin descarregado.");
+    notify_user("SCANNER DESCARREGADO");
     return 0;
 }
 

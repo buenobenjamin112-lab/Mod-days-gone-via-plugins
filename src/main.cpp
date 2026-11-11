@@ -44,7 +44,6 @@ int plugin_load(int argc, char **argv) {
     (void)argv;
 
     proc_info info = {};
-
     int result = sys_sdk_proc_info(&info);
 
     if (result != 0) {
@@ -57,7 +56,7 @@ int plugin_load(int argc, char **argv) {
         return 0;
     }
 
-    OrbisKernelModule handles[256];
+    OrbisKernelModule handles[256] = {};
     size_t count = 0;
 
     result = sceKernelGetModuleList(
@@ -80,54 +79,52 @@ int plugin_load(int argc, char **argv) {
 
     notify_user(message);
 
-    for (size_t batch = 0; batch < 3; batch++) {
-        size_t start = batch * 4;
-        size_t end = start + 4;
+    for (size_t i = 0; i < count; i++) {
+        OrbisKernelModuleInfo module_info = {};
+        module_info.size = sizeof(OrbisKernelModuleInfo);
 
-        if (end > count)
-            end = count;
+        result = sceKernelGetModuleInfo(
+            handles[i], &module_info
+        );
 
-        if (start >= count)
-            break;
+        if (result != 0)
+            continue;
 
-        snprintf(message, sizeof(message),
-                 "MODULOS %u-%u: ",
-                 (unsigned int)start,
-                 (unsigned int)(end - 1));
+        if (i == 0) {
+            size_t segments = module_info.segmentCount;
 
-        size_t used = strlen(message);
+            if (segments > 4)
+                segments = 4;
 
-        for (size_t i = start; i < end; i++) {
-            OrbisKernelModuleInfo module_info = {};
-            module_info.size = sizeof(OrbisKernelModuleInfo);
+            snprintf(message, sizeof(message),
+                     "EBOOT: %u segmentos",
+                     (unsigned int)segments);
 
-            result = sceKernelGetModuleInfo(
-                handles[i], &module_info
-            );
+            notify_user(message);
 
-            if (result != 0)
-                continue;
+            for (size_t s = 0; s < segments; s++) {
+                snprintf(message, sizeof(message),
+                         "EBOOT SEG %u @%llX TAM %X",
+                         (unsigned int)s,
+                         (unsigned long long)
+                         module_info.segmentInfo[s].address,
+                         (unsigned int)
+                         module_info.segmentInfo[s].size);
 
-            int written = snprintf(
-                message + used,
-                sizeof(message) - used,
-                "#%u %.12s @%llX/%X | ",
-                (unsigned int)i,
-                module_info.name,
-                (unsigned long long)
-                    module_info.segmentInfo[0].address,
-                (unsigned int)
-                    module_info.segmentInfo[0].size
-            );
+                notify_user(message);
+            }
+        } else {
+            snprintf(message, sizeof(message),
+                     "#%u %.12s @%llX/%X",
+                     (unsigned int)i,
+                     module_info.name,
+                     (unsigned long long)
+                     module_info.segmentInfo[0].address,
+                     (unsigned int)
+                     module_info.segmentInfo[0].size);
 
-            if (written < 0 ||
-                (size_t)written >= sizeof(message) - used)
-                break;
-
-            used += (size_t)written;
+            notify_user(message);
         }
-
-        notify_user(message);
     }
 
     return 0;

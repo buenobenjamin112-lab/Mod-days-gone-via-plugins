@@ -1,11 +1,16 @@
 
 #include <Common.h>
+#include <orbis/libkernel.h>
 #include <stdio.h>
 #include <string.h>
 
 extern "C" {
 
 const char *g_pluginName = "DaysGoneSpawner";
+
+static volatile int g_monitorRunning = 0;
+static int g_monitorThreadStarted = 0;
+static OrbisPthread g_monitorThread;
 
 int module_start(size_t args, const void *argp) {
     (void)args;
@@ -39,93 +44,67 @@ static void notify_user(const char *message) {
     );
 }
 
+static void *monitor_thread(void *arg) {
+    (void)arg;
+
+    int last_pid = -1;
+
+    while (g_monitorRunning) {
+        proc_info info = {};
+        int result = sys_sdk_proc_info(&info);
+
+        if (result == 0 &&
+            strcmp(info.titleid, "CUSA08966") == 0) {
+
+            if (last_pid != info.pid) {
+                char message[160];
+
+                snprintf(message, sizeof(message),
+                         "MONITOR ATIVO | DAYS GONE %s | PID %d",
+                         info.version, info.pid);
+
+                notify_user(message);
+                last_pid = info.pid;
+            }
+
+        } else if (result == 0) {
+            last_pid = -1;
+        }
+
+        sceKernelUsleep(2000000);
+    }
+
+    scePthreadExit(NULL);
+    return NULL;
+}
+
 int plugin_load(int argc, char **argv) {
     (void)argc;
     (void)argv;
 
-    proc_info info = {};
-    int result = sys_sdk_proc_info(&info);
-
-    if (result != 0) {
-        notify_user("Erro ao consultar processo.");
+    if (g_monitorThreadStarted) {
+        notify_user("Monitor Days Gone ja esta ativo.");
         return 0;
     }
 
-    if (strcmp(info.titleid, "CUSA08966") != 0) {
-        notify_user("Outro processo detectado.");
-        return 0;
-    }
+    g_monitorRunning = 1;
 
-    OrbisKernelModule handles[256] = {};
-    size_t count = 0;
-
-    result = sceKernelGetModuleList(
-        handles, sizeof(handles), &count
+    int result = scePthreadCreate(
+        &g_monitorThread,
+        NULL,
+        monitor_thread,
+        NULL,
+        "dg_monitor"
     );
 
     if (result != 0) {
-        notify_user("Erro ao listar modulos.");
+        g_monitorRunning = 0;
+        notify_user("Erro ao iniciar monitor.");
         return 0;
     }
 
-    if (count > 256)
-        count = 256;
-
-    char message[240];
-
-    snprintf(message, sizeof(message),
-             "DAYS GONE %s | PID %d | MODULOS %u",
-             info.version, info.pid, (unsigned int)count);
-
-    notify_user(message);
-
-    for (size_t i = 0; i < count; i++) {
-        OrbisKernelModuleInfo module_info = {};
-        module_info.size = sizeof(OrbisKernelModuleInfo);
-
-        result = sceKernelGetModuleInfo(
-            handles[i], &module_info
-        );
-
-        if (result != 0)
-            continue;
-
-        if (i == 0) {
-            size_t segments = module_info.segmentCount;
-
-            if (segments > 4)
-                segments = 4;
-
-            snprintf(message, sizeof(message),
-                     "EBOOT: %u segmentos",
-                     (unsigned int)segments);
-
-            notify_user(message);
-
-            for (size_t s = 0; s < segments; s++) {
-                snprintf(message, sizeof(message),
-                         "EBOOT SEG %u @%llX TAM %X",
-                         (unsigned int)s,
-                         (unsigned long long)
-                         module_info.segmentInfo[s].address,
-                         (unsigned int)
-                         module_info.segmentInfo[s].size);
-
-                notify_user(message);
-            }
-        } else {
-            snprintf(message, sizeof(message),
-                     "#%u %.12s @%llX/%X",
-                     (unsigned int)i,
-                     module_info.name,
-                     (unsigned long long)
-                     module_info.segmentInfo[0].address,
-                     (unsigned int)
-                     module_info.segmentInfo[0].size);
-
-            notify_user(message);
-        }
-    }
+    g_monitorThreadStarted = 1;
+    notify_user("Days Gone: monitor iniciado.");
 
     return 0;
 }
@@ -134,7 +113,14 @@ int plugin_unload(int argc, char **argv) {
     (void)argc;
     (void)argv;
 
+    if (g_monitorThreadStarted) {
+        g_monitorRunning = 0;
+        scePthreadJoin(g_monitorThread, NULL);
+        g_monitorThreadStarted = 0;
+    }
+
     notify_user("Days Gone Plugin descarregado.");
+
     return 0;
 }
 

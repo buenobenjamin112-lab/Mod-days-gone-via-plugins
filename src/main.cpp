@@ -3,6 +3,7 @@
 #include <orbis/libkernel.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 
 extern "C" {
 
@@ -44,6 +45,26 @@ static void notify_user(const char *message) {
     );
 }
 
+/* Leitura de memoria: write_flags = 0 */
+static int read_game_memory(
+    uint64_t address,
+    unsigned char *buffer,
+    uint64_t length
+) {
+    if (!address || !buffer || !length) {
+        return -1;
+    }
+
+    struct proc_rw request = {};
+
+    request.address = address;
+    request.data = buffer;
+    request.length = length;
+    request.write_flags = 0;
+
+    return sys_sdk_proc_rw(&request);
+}
+
 static void *monitor_thread(void *arg) {
     (void)arg;
 
@@ -64,7 +85,43 @@ static void *monitor_thread(void *arg) {
                          info.version, info.pid);
 
                 notify_user(message);
+
                 last_pid = info.pid;
+
+                /* Teste de leitura de 8 bytes */
+                unsigned char data[8] = {};
+
+                if (info.base_address != 0) {
+                    int read_result = read_game_memory(
+                        info.base_address,
+                        data,
+                        sizeof(data)
+                    );
+
+                    char read_message[160];
+
+                    if (read_result == 0) {
+                        snprintf(
+                            read_message,
+                            sizeof(read_message),
+                            "LEITURA OK | %02X %02X %02X %02X %02X %02X %02X %02X",
+                            data[0], data[1], data[2], data[3],
+                            data[4], data[5], data[6], data[7]
+                        );
+                    } else {
+                        snprintf(
+                            read_message,
+                            sizeof(read_message),
+                            "ERRO LEITURA | CODIGO %d",
+                            read_result
+                        );
+                    }
+
+                    notify_user(read_message);
+
+                } else {
+                    notify_user("BASE DO JOGO NAO INFORMADA.");
+                }
             }
 
         } else if (result == 0) {
